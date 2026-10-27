@@ -1,0 +1,157 @@
+{
+  "name": "Follow-up D2 - No Response (manual test)",
+  "id": "followup-d2-manual-001",
+  "tags": [],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "connections": {
+    "Fetch Leads - No Response 2d": {
+      "main": [
+        [
+          {
+            "node": "Filter Already Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Already Sent": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Follow-up": {
+      "main": [
+        [
+          {
+            "node": "Mark as Sent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Leads - No Response 2d",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "schedule-node",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.CRM_SHEET_URL }}/leads?status=new&lastContact__lte={{ DateTime.now().minus({ days: 2 }).toISO() }}",
+        "options": {}
+      },
+      "id": "fetch-node",
+      "name": "Fetch Leads - No Response 2d",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        450,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CRM_TOKEN_PLACEHOLDER",
+          "name": "CRM Token Placeholder"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst leads = items.map(i => i.json).flat().filter(l => l && l.id);\nconst filtered = leads.filter(l => !l.followUpSentAt);\nreturn filtered.map(l => ({ json: l }));"
+      },
+      "id": "filter-node",
+      "name": "Filter Already Sent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL }}",
+        "sendBody": true,
+        "options": {
+          "timeout": 15000
+        },
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({phone:$json.phone, message:\"Hi \"+$json.name+\", just checking in on your request. Anything I can help with?\"}) }}"
+      },
+      "id": "followup-node",
+      "name": "Send Follow-up",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        850,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "WHATSAPP_TOKEN_PLACEHOLDER",
+          "name": "WhatsApp Token Placeholder"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.CRM_SHEET_URL }}/leads/{{ $json.id }}",
+        "sendBody": true,
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({followUpSentAt: new Date().toISOString()}) }}"
+      },
+      "id": "mark-node",
+      "name": "Mark as Sent",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1050,
+        300
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "CRM_TOKEN_PLACEHOLDER",
+          "name": "CRM Token Placeholder"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "active": false
+}

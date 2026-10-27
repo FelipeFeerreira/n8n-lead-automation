@@ -1,0 +1,14 @@
+{
+  "name": "proj-n8n-simulator",
+  "version": "1.0.0",
+  "description": "Local, dependency-free simulator for the lead-inbound n8n workflow.",
+  "type": "module",
+  "scripts": {
+    "sim": "node simulator.js",
+    "sim:fail": "SIM_WHATSAPP_FAIL=true node simulator.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "license": "MIT"
+}

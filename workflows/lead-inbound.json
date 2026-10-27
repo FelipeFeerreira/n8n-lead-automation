@@ -1,0 +1,170 @@
+{
+  "name": "Lead Inbound - Capture & Notify",
+  "id": "lead-inbound-001",
+  "tags": [],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "connections": {
+    "Webhook - Form Submission": {
+      "main": [
+        [
+          {
+            "node": "Validate Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Fields": {
+      "main": [
+        [
+          {
+            "node": "Send Confirmation Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Confirmation Email": {
+      "main": [
+        [
+          {
+            "node": "Notify WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Create CRM Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create CRM Record": {
+      "main": [
+        [
+          {
+            "node": "Log Execution",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "path": "lead-form",
+        "responseMode": "onReceived",
+        "options": {},
+        "httpMethod": "POST"
+      },
+      "id": "webhook-node",
+      "name": "Webhook - Form Submission",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
+      "webhookId": "lead-form"
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst src = raw.body ?? raw.query ?? raw;\nconst required = ['name', 'email', 'phone', 'source'];\nconst missing = required.filter(f => !(src[f]));\nif (missing.length) {\n  throw new Error('Validation failed: missing ' + missing.join(', '));\n}\nconst out = { ...src, validatedAt: new Date().toISOString() };\nreturn [{ json: out }];"
+      },
+      "id": "validate-node",
+      "name": "Validate Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        450,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.EMAIL_API_URL }}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({to:$json.email, subject:\"Thanks for reaching out\", lead:$json.name}) }}",
+        "options": {}
+      },
+      "id": "email-node",
+      "name": "Send Confirmation Email",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        650,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.WHATSAPP_API_URL }}",
+        "sendBody": true,
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({phone:$('Validate Fields').item.json.phone, message:\"Hello \"+$('Validate Fields').item.json.name+\", your request was received.\"}) }}"
+      },
+      "id": "whatsapp-node",
+      "name": "Notify WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        850,
+        300
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.CRM_SHEET_URL }}",
+        "sendBody": true,
+        "options": {},
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({name:$('Validate Fields').item.json.name,email:$('Validate Fields').item.json.email,phone:$('Validate Fields').item.json.phone,source:$('Validate Fields').item.json.source,status:\"new\"}) }}"
+      },
+      "id": "crm-node",
+      "name": "Create CRM Record",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1050,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const lead = $input.first().json;\nreturn [{\n  json: {\n    runAt: new Date().toISOString(),\n    workflow: 'lead-inbound',\n    status: 'success',\n    leadEmail: lead.email,\n    source: lead.source\n  }\n}];"
+      },
+      "id": "log-node",
+      "name": "Log Execution",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1250,
+        300
+      ]
+    }
+  ],
+  "pinData": {},
+  "active": true
+}
